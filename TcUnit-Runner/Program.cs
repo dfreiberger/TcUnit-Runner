@@ -145,7 +145,7 @@ namespace TcUnit.TcUnit_Runner
 
             MessageFilter.Register();
 
-            TwinCATProjectFilePath = TcFileUtilities.FindTwinCATProjectFile(VisualStudioSolutionFilePath);
+            TwinCATProjectFilePath = VisualStudioTools.FindProjectFile(VisualStudioSolutionFilePath, "tsproj|tspproj");
             if (String.IsNullOrEmpty(TwinCATProjectFilePath))
             {
                 log.Error("Did not find TwinCAT project file in solution. Is this a TwinCAT project?");
@@ -203,6 +203,45 @@ namespace TcUnit.TcUnit_Runner
                 CleanUpAndExitApplication(Constants.RETURN_NO_PLC_PROJECT_IN_TWINCAT_PROJECT);
             }
 
+            /* Generate static analysis report */
+            if (enableStaticAnalysis)
+            {
+                log.Info("Starting Static Analysis...");
+                int tcStaticAnalysisWarnings = 0;
+                int tcStaticAnalysisErrors = 0;
+                for (int i = 1; i <= automationInterface.PlcTreeItem.ChildCount; i++)
+                {
+                    ITcSmTreeItem plcProject = automationInterface.PlcTreeItem.Child[i];
+                    ITcPlcProject iecProject = (ITcPlcProject2)plcProject;
+                    ITcPlcIECProject3 plcIecProject = (ITcPlcIECProject3)plcProject.LookupChild(plcProject.Name + " Project");
+                    plcIecProject.RunStaticAnalysis();
+
+                    ErrorItems errorsStaticAnalysis = vsInstance.GetErrorItems();
+                    for (int j = 1; j <= errorsStaticAnalysis.Count; j++)
+                    {
+                        ErrorItem item = errorsStaticAnalysis.Item(j);
+                        if ((item.ErrorLevel != vsBuildErrorLevel.vsBuildErrorLevelLow) && item.Description.StartsWith("SA"))
+                        {
+                            if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelMedium)
+                            {
+                                log.Warn("Description: " + item.Description);
+                                log.Warn("ErrorLevel: " + item.ErrorLevel);
+                                log.Warn("Filename: " + item.FileName);
+                                tcStaticAnalysisWarnings++;
+                            }
+                            else if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
+                            {
+                                log.Error("Description: " + item.Description);
+                                log.Error("ErrorLevel: " + item.ErrorLevel);
+                                log.Error("Filename: " + item.FileName);
+                                tcStaticAnalysisErrors++;
+                            }
+                        }
+                    }
+                }
+                log.Info("Total Static Analysis Errors: " + tcStaticAnalysisErrors);
+                log.Info("Total Static Analysis Warnings: " + tcStaticAnalysisWarnings);
+            }
 
             ITcSmTreeItem realTimeTasksTreeItem = automationInterface.RealTimeTasksTreeItem;
             /* Task name provided */
@@ -300,47 +339,6 @@ namespace TcUnit.TcUnit_Runner
                     }
                 }
             }
-
-            /* Generate static analysis report */
-            if (enableStaticAnalysis)
-            {
-                log.Info("Starting Static Analysis...");
-                int tcStaticAnalysisWarnings = 0;
-                int tcStaticAnalysisErrors = 0;
-                for (int i = 1; i <= automationInterface.PlcTreeItem.ChildCount; i++)
-                {
-                    ITcSmTreeItem plcProject = automationInterface.PlcTreeItem.Child[i];
-                    ITcPlcProject iecProject = (ITcPlcProject2)plcProject;
-                    ITcPlcIECProject3 plcIecProject = (ITcPlcIECProject3)plcProject.LookupChild(plcProject.Name + " Project");
-                    plcIecProject.RunStaticAnalysis();
-
-                    ErrorItems errorsStaticAnalysis = vsInstance.GetErrorItems();
-                    for (int j = 1; j <= errorsStaticAnalysis.Count; j++)
-                    {
-                        ErrorItem item = errorsStaticAnalysis.Item(j);
-                        if ((item.ErrorLevel != vsBuildErrorLevel.vsBuildErrorLevelLow) && item.Description.StartsWith("SA"))
-                        {
-                            if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelMedium)
-                            {
-                                log.Warn("Description: " + item.Description);
-                                log.Warn("ErrorLevel: " + item.ErrorLevel);
-                                log.Warn("Filename: " + item.FileName);
-                                tcStaticAnalysisWarnings++;
-                            }
-                            else if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
-                            {
-                                log.Error("Description: " + item.Description);
-                                log.Error("ErrorLevel: " + item.ErrorLevel);
-                                log.Error("Filename: " + item.FileName);
-                                tcStaticAnalysisErrors++;
-                            }
-                        }
-                    }
-                }
-                log.Info("Total Static Analysis Errors: " + tcStaticAnalysisErrors);
-                log.Info("Total Static Analysis Warnings: " + tcStaticAnalysisWarnings);
-            }
-
 
             /* If we don't have any errors, activate the configuration and 
              * start/restart TwinCAT */

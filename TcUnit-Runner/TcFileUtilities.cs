@@ -45,46 +45,5 @@ namespace TcUnit.TcUnit_Runner
             file.Close();
             return tcVersion;
         }
-
-
-
-        /// <summary>
-        /// Returns the complete path to the TwinCAT project file.
-        /// </summary>
-        /// <returns>The path to the TwinCAT project file. Empty if not found.</returns>
-        public static string FindTwinCATProjectFile(string VisualStudioSolutionFilePath)
-        {
-            /* Find Visual Studio version */
-            string line;
-            string tcProjectFilePath = "";
-            string tcProjectFile = "";
-
-            System.IO.StreamReader file = new System.IO.StreamReader(@VisualStudioSolutionFilePath);
-            while ((line = file.ReadLine()) != null)
-            {
-                if (line.StartsWith("Project"))
-                {
-                    tcProjectFile = Utilities.GetUntilOrEmpty(line, ".tsproj");
-                    break;
-                }
-            }
-            file.Close();
-
-            if (!String.IsNullOrEmpty(tcProjectFile))
-            {
-                int indexOfTcProjectFile = tcProjectFile.LastIndexOf("\"") + 1;
-                try { 
-                    tcProjectFile = tcProjectFile.Substring(indexOfTcProjectFile, (tcProjectFile.Length- indexOfTcProjectFile));
-
-                    // Add visual studio solution directory path
-                    string VisualStudioSolutionDirectoryPath = Path.GetDirectoryName(VisualStudioSolutionFilePath);
-                    tcProjectFilePath = VisualStudioSolutionDirectoryPath + "\\" + tcProjectFile + ".tsproj";
-                } catch
-                {
-
-                }
-            }
-            return tcProjectFilePath;
-        }
     }
 }

@@ -47,5 +47,35 @@ namespace TcUnit.TcUnit_Runner
                 return null;
             }
         }
+
+        /// <summary>
+        /// Returns the complete path to  project file.
+        /// </summary>
+        /// <returns>The path to the a project file. Empty if not found.</returns>
+        public static string FindProjectFile(string filePath, string extensions)
+        {
+            string file;
+            try
+            {
+                file = File.ReadAllText(@filePath);
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+
+            string pattern = @"^Project.+""(?<file>\w+\.(?:" + extensions + @"))""";
+            Match match = Regex.Match(file, pattern, RegexOptions.Multiline);
+
+            if (match.Success)
+            {
+                log.Info("In Visual Studio solution file, found project " + match.Groups[1].Value);
+                return Path.Combine(Path.GetDirectoryName(filePath), match.Groups[1].Value);
+            }
+            else
+            {
+                return null;
+            }
+        }
     }
 }
