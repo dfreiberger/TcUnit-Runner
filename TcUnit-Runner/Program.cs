@@ -57,6 +57,8 @@ namespace TcUnit.TcUnit_Runner
         {
             bool showHelp = false;
             bool enableDebugLoggingLevel = false;
+            bool enableStaticAnalysis = false;
+            bool disableTesting = false;
             Console.CancelKeyPress += new ConsoleCancelEventHandler(CancelKeyPressHandler);
             log4net.GlobalContext.Properties["LogLocation"] = AppDomain.CurrentDomain.BaseDirectory + "\\logs";
             log4net.Config.XmlConfigurator.ConfigureAndWatch(new System.IO.FileInfo(AppDomain.CurrentDomain.BaseDirectory + "log4net.config"));
@@ -67,6 +69,8 @@ namespace TcUnit.TcUnit_Runner
                 .Add("a=|AmsNetId=", "[OPTIONAL] The AMS NetId of the device of where the project and TcUnit should run", a => AmsNetId = a)
                 .Add("w=|TcVersion=", "[OPTIONAL] The TwinCAT version to be used to load the TwinCAT project", w => ForceToThisTwinCATVersion = w)
                 .Add("u=|Timeout=", "[OPTIONAL] Timeout the process with an error after X minutes", u => Timeout = u)
+                .Add("sa|staticanalysis", "[OPTIONAL] Enable static analysis", sa => enableStaticAnalysis = sa != null)
+                .Add("nt|notest", "[OPTIONAL] Disable unit testing", nt => disableTesting = nt != null)
                 .Add("d|debug", "[OPTIONAL] Increase debug message verbosity", d => enableDebugLoggingLevel = d != null)
                 .Add("?|h|help", h => showHelp = h != null);
             try
@@ -275,7 +279,6 @@ namespace TcUnit.TcUnit_Runner
              */
             vsInstance.CleanSolution();
             vsInstance.BuildSolution();
-
             ErrorItems errorsBuild = vsInstance.GetErrorItems();
 
             int tcBuildWarnings = 0;
@@ -286,7 +289,9 @@ namespace TcUnit.TcUnit_Runner
                 if ((item.ErrorLevel != vsBuildErrorLevel.vsBuildErrorLevelLow))
                 {
                     if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelMedium)
+                    {
                         tcBuildWarnings++;
+                    }
                     else if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
                     {
                         tcBuildError++;
@@ -297,9 +302,50 @@ namespace TcUnit.TcUnit_Runner
                 }
             }
 
+            /* Generate static analysis report */
+            if (enableStaticAnalysis)
+            {
+                log.Info("Starting Static Analysis...");
+                int tcStaticAnalysisWarnings = 0;
+                int tcStaticAnalysisErrors = 0;
+                for (int i = 1; i <= automationInterface.PlcTreeItem.ChildCount; i++)
+                {
+                    ITcSmTreeItem plcProject = automationInterface.PlcTreeItem.Child[i];
+                    ITcPlcProject iecProject = (ITcPlcProject2)plcProject;
+                    ITcPlcIECProject3 plcIecProject = (ITcPlcIECProject3)plcProject.LookupChild(plcProject.Name + " Project");
+                    plcIecProject.RunStaticAnalysis();
+
+                    ErrorItems errorsStaticAnalysis = vsInstance.GetErrorItems();
+                    for (int j = 1; j <= errorsStaticAnalysis.Count; j++)
+                    {
+                        ErrorItem item = errorsStaticAnalysis.Item(j);
+                        if ((item.ErrorLevel != vsBuildErrorLevel.vsBuildErrorLevelLow) && item.Description.StartsWith("SA"))
+                        {
+                            if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelMedium)
+                            {
+                                log.Warn("Description: " + item.Description);
+                                log.Warn("ErrorLevel: " + item.ErrorLevel);
+                                log.Warn("Filename: " + item.FileName);
+                                tcStaticAnalysisWarnings++;
+                            }
+                            else if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
+                            {
+                                log.Error("Description: " + item.Description);
+                                log.Error("ErrorLevel: " + item.ErrorLevel);
+                                log.Error("Filename: " + item.FileName);
+                                tcStaticAnalysisErrors++;
+                            }
+                        }
+                    }
+                }
+                log.Info("Total Static Analysis Errors: " + tcStaticAnalysisErrors);
+                log.Info("Total Static Analysis Warnings: " + tcStaticAnalysisWarnings);
+            }
+
+
             /* If we don't have any errors, activate the configuration and 
              * start/restart TwinCAT */
-            if (tcBuildError.Equals(0))
+            if (tcBuildError.Equals(0) && !disableTesting)
             {
                 /* Check whether the user has provided an AMS NetId. If so, use it. Otherwise use
                  * the local AMS NetId */
@@ -336,6 +382,11 @@ namespace TcUnit.TcUnit_Runner
                 System.Threading.Thread.Sleep(10000);
 
                 automationInterface.StartRestartTwinCAT();
+            }
+            else if (disableTesting)
+            {
+                log.Error("Skipping unit tests due to -nt option");
+                CleanUpAndExitApplication(Constants.RETURN_SUCCESSFULL);
             }
             else
             {

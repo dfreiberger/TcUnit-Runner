@@ -124,6 +124,9 @@ namespace TcUnit.TcUnit_Runner
                 foreach (var item in errors.Where(e => e.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelLow))
                 {
                     string tcUnitAdsMessage;
+
+                    log.Debug(item.Description);
+
                     // Only do further processing if message is from TcUnit
                     if (IsTcUnitAdsMessage(item.Description, unitTestTaskName)) {
                         tcUnitAdsMessage = RemoveEverythingButTcUnitAdsMessage(item.Description, unitTestTaskName);
