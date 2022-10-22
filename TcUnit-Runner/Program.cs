@@ -279,6 +279,7 @@ namespace TcUnit.TcUnit_Runner
              */
             vsInstance.CleanSolution();
             vsInstance.BuildSolution();
+
             ErrorItems errorsBuild = vsInstance.GetErrorItems();
 
             int tcBuildWarnings = 0;
@@ -289,9 +290,7 @@ namespace TcUnit.TcUnit_Runner
                 if ((item.ErrorLevel != vsBuildErrorLevel.vsBuildErrorLevelLow))
                 {
                     if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelMedium)
-                    {
                         tcBuildWarnings++;
-                    }
                     else if (item.ErrorLevel == vsBuildErrorLevel.vsBuildErrorLevelHigh)
                     {
                         tcBuildError++;
